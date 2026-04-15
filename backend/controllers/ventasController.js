@@ -1,61 +1,64 @@
-const db = require("../database");
+const db = require('../database');
 
-// Función para obtener todas las ventas (Para el módulo de Reportes)
+// Obtener todas las ventas (con manejo de errores)
 exports.obtenerVentas = (req, res) => {
-    const sql = `
-        SELECT v.id, v.fecha, v.total, count(dv.id) as items_count 
-        FROM ventas v 
-        LEFT JOIN detalle_ventas dv ON v.id = dv.venta_id 
-        GROUP BY v.id 
-        ORDER BY v.id DESC`;
+    const sql = "SELECT * FROM ventas ORDER BY id DESC";
 
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+        if (err) {
+            console.error("Error al leer ventas:", err.message);
+            // No le damos detalles técnicos al usuario por seguridad
+            return res.status(500).json({ error: "Error interno al obtener el historial." });
+        }
+        res.json({ data: rows });
     });
 };
 
-// Función para crear una venta con VALIDACIONES
+// Crear una venta (Blindado contra datos incorrectos)
 exports.crearVenta = (req, res) => {
-    let { total, fecha, items } = req.body;
+    // 1. Desestructuración segura
+    let { producto, cantidad, precio } = req.body;
 
-    if (!items || items.length === 0) {
-        return res.status(400).json({ error: "No hay productos en la venta" });
+    // 2. VALIDACIÓN DE DATOS (Backend - Última línea de defensa)
+
+    // Validar Producto
+    if (!producto || typeof producto !== 'string' || producto.trim() === '') {
+        return res.status(400).json({ error: "El nombre del producto es obligatorio." });
     }
 
-    // --- VALIDACIÓN Y LIMPIEZA DE DATOS ---
-    // Aseguramos tipos de datos correctos antes de guardar
-    items = items.map(item => ({
-        producto: item.producto.toUpperCase().trim(), // Todo a Mayúsculas y sin espacios extra
-        cantidad: Number(item.cantidad),              // Forzar número
-        precio: Number(item.precio),                  // Forzar número
-        subtotal: Number(item.cantidad) * Number(item.precio) // Recalcular por seguridad
-    }));
+    // Validar Cantidad (Convertir a entero por seguridad y validar lógica)
+    cantidad = parseInt(cantidad);
+    if (isNaN(cantidad) || cantidad <= 0) {
+        return res.status(400).json({ error: "La cantidad debe ser un número entero mayor a 0." });
+    }
 
-    // Recalcular total del servidor por seguridad (no confiar solo en el frontend)
-    total = items.reduce((sum, item) => sum + item.subtotal, 0);
+    // Validar Precio (Convertir a flotante y validar que no sea negativo)
+    precio = parseFloat(precio);
+    if (isNaN(precio) || precio < 0) {
+        return res.status(400).json({ error: "El precio no puede ser negativo ni texto." });
+    }
 
-    // --- INSERCIÓN EN BASE DE DATOS ---
-    const sqlVenta = `INSERT INTO ventas (fecha, total) VALUES (?, ?)`;
+    // 3. INSERCIÓN SEGURA (Prepared Statements)
+    // Usamos '?' para prevenir inyección SQL. Nunca concatenar strings aquí.
+    const sql = `INSERT INTO ventas (producto, cantidad, precio, fecha) VALUES (?, ?, ?, date('now', 'localtime'))`;
+    const params = [producto.trim(), cantidad, precio];
 
-    db.run(sqlVenta, [fecha, total], function (err) {
-        if (err) return res.status(500).json({ error: err.message });
+    db.run(sql, params, function (err) {
+        if (err) {
+            console.error("Error al insertar venta:", err.message);
+            return res.status(500).json({ error: "Error al guardar la venta en la base de datos." });
+        }
 
-        const ventaId = this.lastID;
-        const sqlDetalle = `INSERT INTO detalle_ventas (venta_id, producto, cantidad, precio, subtotal) VALUES (?, ?, ?, ?, ?)`;
-
-        // Usamos Promise.all para esperar a que se guarden todos los detalles
-        const promesasDetalles = items.map(item => {
-            return new Promise((resolve, reject) => {
-                db.run(sqlDetalle, [ventaId, item.producto, item.cantidad, item.precio, item.subtotal], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+        // 4. RESPUESTA DE ÉXITO (HTTP 201 Created)
+        res.status(201).json({
+            message: "Venta registrada con éxito",
+            venta: {
+                id: this.lastID,
+                producto: producto.trim(),
+                cantidad,
+                precio,
+                fecha: new Date().toLocaleDateString() // Fecha simulada para feedback inmediato
+            }
         });
-
-        Promise.all(promesasDetalles)
-            .then(() => res.json({ message: "Venta registrada", id: ventaId }))
-            .catch(err => res.status(500).json({ error: "Error guardando detalles: " + err.message }));
     });
 };
