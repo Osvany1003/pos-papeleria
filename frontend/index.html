@@ -3,102 +3,325 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>POS Papelería</title>
+    <title>POS Papelería RayCruz - Sistema de Ventas</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
 
 <div class="dashboard-container">
+    <!-- ========== SIDEBAR PRINCIPAL ========== -->
     <aside class="sidebar">
         <div class="logo">
-            <h2>Papelería PapeRay</h2>
+            <span class="material-icons logo-icon">store</span>
+            <h2>Papelería RayCruz</h2>
         </div>
         <nav>
-            <button class="nav-btn active" onclick="mostrarSeccion('venta-panel')">
-                <span class="material-icons">point_of_sale</span> Nueva Venta
+            <!-- Tab: Punto de Venta -->
+            <button class="nav-btn active" data-tab="pos-tab">
+                <span class="material-icons">point_of_sale</span>
+                Punto de Venta
             </button>
-            <button class="nav-btn" onclick="cargarReportes()">
-                <span class="material-icons">receipt_long</span> Historial / Reportes
+
+            <!-- Tab: Inventario -->
+            <button class="nav-btn" data-tab="inventario-tab">
+                <span class="material-icons">inventory_2</span>
+                Inventario
             </button>
-            <button class="nav-btn" style="opacity: 0.5; cursor: not-allowed;">
-                <span class="material-icons">inventory_2</span> Productos (Pronto)
+
+            <!-- Tab: Reportes -->
+            <button class="nav-btn" data-tab="reportes-tab">
+                <span class="material-icons">assessment</span>
+                Reportes
             </button>
         </nav>
+        <div class="sidebar-footer">
+            <p class="app-version">v2.0 Refactorizado</p>
+        </div>
     </aside>
 
+    <!-- ========== CONTENIDO PRINCIPAL ========== -->
     <main class="main-content">
 
-        <section id="venta-panel" class="view-section active">
-            <header>
-                <h1>Nueva Venta</h1>
+        <!-- ========== SECCIÓN 1: PUNTO DE VENTA ========== -->
+        <section id="pos-tab" class="tab-content active">
+            <header class="section-header">
+                <h1><span class="material-icons">point_of_sale</span> Punto de Venta</h1>
+                <p class="subtitle">Registra ventas en tiempo real</p>
             </header>
 
-            <div class="venta-grid">
-                <div class="card form-card">
-                    <div class="input-group">
-                        <label>Producto</label>
-                        <input type="text" id="producto" placeholder="Ej: LÁPIZ HB" oninput="this.value = this.value.toUpperCase()">
-                    </div>
-                    <div class="row">
-                        <div class="input-group">
-                            <label>Cantidad</label>
-                            <input type="number" id="cantidad" value="1" min="1">
-                        </div>
-                        <div class="input-group">
-                            <label>Precio Unit.</label>
-                            <input type="number" id="precio" placeholder="0.00" min="0" step="0.5">
-                        </div>
-                    </div>
-                    <button id="btn-agregar" class="btn-primary">Agregar a la lista</button>
-                </div>
+            <div class="pos-grid">
+                <!-- Panel: Búsqueda y Carrito -->
+                <div class="card search-card">
+                    <h3>Buscar Productos</h3>
 
-                <div class="card list-card">
-                    <h3>Detalle de Venta</h3>
-                    <table>
+                    <div class="input-group">
+                        <span class="material-icons input-icon">search</span>
+                        <input
+                            type="text"
+                            id="busqueda-producto"
+                            placeholder="Busca por nombre o código..."
+                            class="search-input"
+                        >
+                    </div>
+
+                    <div id="resultados-busqueda" class="productos-lista"></div>
+
+                    <div class="divider"></div>
+
+                    <h3>Carrito de Venta</h3>
+                    <table class="carrito-table">
                         <thead>
-                        <tr>
-                            <th>Producto</th>
-                            <th>Cant.</th>
-                            <th>Precio</th>
-                            <th>Subtotal</th>
-                            <th>Acción</th>
-                        </tr>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cant.</th>
+                                <th>Precio</th>
+                                <th>Subtotal</th>
+                                <th>Acción</th>
+                            </tr>
                         </thead>
-                        <tbody id="lista-venta">
+                        <tbody id="carrito-items">
+                            <!-- Se llena dinámicamente -->
                         </tbody>
                     </table>
-                    <div class="total-footer">
-                        <h3>Total: $<span id="total-venta">0.00</span></h3>
-                        <button id="btn-cobrar" class="btn-success">Cobrar Venta</button>
+
+                    <div class="carrito-totales">
+                        <div class="total-row">
+                            <span>Subtotal:</span>
+                            <strong>$<span id="subtotal-carrito">0.00</span></strong>
+                        </div>
+                        <div class="total-row">
+                            <span>IVA (0%):</span>
+                            <strong>$<span id="iva-carrito">0.00</span></strong>
+                        </div>
+                        <div class="total-row total-principal">
+                            <span>Total:</span>
+                            <strong>$<span id="total-carrito">0.00</span></strong>
+                        </div>
+                        <button id="btn-cobrar" class="btn-success full-width">
+                            <span class="material-icons">payment</span>
+                            Cobrar Venta
+                        </button>
+                        <button id="btn-limpiar-carrito" class="btn-secondary full-width">
+                            <span class="material-icons">delete</span>
+                            Limpiar Carrito
+                        </button>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section id="reportes-panel" class="view-section" style="display: none;">
-            <header>
-                <h1>Historial de Ventas</h1>
+        <!-- ========== SECCIÓN 2: INVENTARIO ========== -->
+        <section id="inventario-tab" class="tab-content">
+            <header class="section-header">
+                <h1><span class="material-icons">inventory_2</span> Gestión de Inventario</h1>
+                <p class="subtitle">Administra el catálogo de productos</p>
             </header>
-            <div class="card">
-                <table class="report-table">
-                    <thead>
-                    <tr>
-                        <th>ID Venta</th>
-                        <th>Fecha</th>
-                        <th>Artículos</th>
-                        <th>Total</th>
-                    </tr>
-                    </thead>
-                    <tbody id="lista-reportes">
-                    </tbody>
-                </table>
+
+            <div class="inventario-grid">
+                <!-- Formulario: Agregar/Editar Producto -->
+                <div class="card form-product-card">
+                    <h3>Nuevo Producto</h3>
+
+                    <form id="formulario-producto">
+                        <div class="input-group">
+                            <label>Código de Barras (opcional)</label>
+                            <input type="text" id="codigo-barras" placeholder="SKU123">
+                        </div>
+
+                        <div class="input-group">
+                            <label>Nombre del Producto *</label>
+                            <input type="text" id="nombre-producto" placeholder="Ej: Lápiz HB" required>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="input-group">
+                                <label>Precio *</label>
+                                <input type="number" id="precio-producto" placeholder="0.00" min="0.01" step="0.01" required>
+                            </div>
+
+                            <div class="input-group">
+                                <label>Stock *</label>
+                                <input type="number" id="stock-producto" placeholder="0" min="0" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-primary full-width">
+                            <span class="material-icons">add</span>
+                            Agregar Producto
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Tabla: Lista de Productos -->
+                <div class="card productos-table-card">
+                    <div class="table-header">
+                        <h3>Productos en Inventario</h3>
+                        <button id="btn-recargar-inventario" class="btn-icon" title="Recargar">
+                            <span class="material-icons">refresh</span>
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="productos-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Precio</th>
+                                    <th>Stock</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-productos">
+                                <tr class="empty-row">
+                                    <td colspan="6">Cargando productos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== SECCIÓN 3: REPORTES ========== -->
+        <section id="reportes-tab" class="tab-content">
+            <header class="section-header">
+                <h1><span class="material-icons">assessment</span> Reportes y Análisis</h1>
+                <p class="subtitle">Visualiza estadísticas de ventas</p>
+            </header>
+
+            <div class="reportes-grid">
+                <!-- Resumen del Día -->
+                <div class="card resumen-card">
+                    <h3><span class="material-icons">today</span> Resumen del Día</h3>
+                    <div class="stats-grid">
+                        <div class="stat">
+                            <span class="stat-label">Total Ventas</span>
+                            <span class="stat-value" id="stat-ventas-hoy">0</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Ingresos</span>
+                            <span class="stat-value" id="stat-ingresos-hoy">$0.00</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Promedio</span>
+                            <span class="stat-value" id="stat-promedio-hoy">$0.00</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Mayor Venta</span>
+                            <span class="stat-value" id="stat-mayor-hoy">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Historial de Ventas -->
+                <div class="card historial-card">
+                    <h3><span class="material-icons">receipt_long</span> Últimas Ventas</h3>
+                    <div class="table-container">
+                        <table class="ventas-table">
+                            <thead>
+                                <tr>
+                                    <th>ID Venta</th>
+                                    <th>Fecha/Hora</th>
+                                    <th>Productos</th>
+                                    <th>Total</th>
+                                    <th>Detalles</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-ventas">
+                                <tr class="empty-row">
+                                    <td colspan="5">Cargando historial...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Productos Más Vendidos -->
+                <div class="card top-productos-card">
+                    <h3><span class="material-icons">trending_up</span> Top Productos Vendidos</h3>
+                    <div class="table-container">
+                        <table class="top-products-table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Cantidad Vendida</th>
+                                    <th>Ingresos</th>
+                                    <th>Veces Vendido</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-top-productos">
+                                <tr class="empty-row">
+                                    <td colspan="4">Cargando datos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </section>
 
     </main>
 </div>
 
+<!-- ========== MODALES ========== -->
+
+<!-- Modal: Detalle de Venta -->
+<div id="modal-detalle-venta" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Detalle de Venta</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="contenido-detalle-venta"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary modal-close">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editar Producto -->
+<div id="modal-editar-producto" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Editar Producto</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="formulario-editar-producto">
+                <div class="input-group">
+                    <label>Código de Barras</label>
+                    <input type="text" id="edit-codigo-barras" placeholder="SKU123">
+                </div>
+                <div class="input-group">
+                    <label>Nombre</label>
+                    <input type="text" id="edit-nombre-producto" required>
+                </div>
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Precio</label>
+                        <input type="number" id="edit-precio-producto" min="0.01" step="0.01" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Stock</label>
+                        <input type="number" id="edit-stock-producto" min="0" required>
+                    </div>
+                </div>
+                <input type="hidden" id="edit-producto-id">
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary modal-close">Cancelar</button>
+            <button class="btn-primary" id="btn-guardar-edicion">Guardar Cambios</button>
+        </div>
+    </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>
+
