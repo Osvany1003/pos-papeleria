@@ -1,30 +1,33 @@
 const db = require('../database');
 
 /**
- * CONTROLADOR DE PRODUCTOS
+ * CONTROLADOR DE PRODUCTOS (Articulos v2.0)
  * Gestiona todas las operaciones CRUD para el inventario
+ * Consulta tabla 'articulos' en lugar de 'productos'
  */
 
 /**
  * GET /api/productos
- * Obtiene todos los productos del inventario
+ * Obtiene todos los artículos del inventario
  */
 exports.obtenerProductos = (req, res) => {
     const sql = `
         SELECT 
-            id_producto, 
+            id_articulo, 
             codigo_barras, 
             nombre, 
-            precio, 
-            stock, 
+            precio_venta,
+            stock,
+            tipo_item,
+            permite_precio_variable,
             fecha_creacion
-        FROM productos 
+        FROM articulos 
         ORDER BY nombre ASC
     `;
 
     db.all(sql, [], (err, rows) => {
         if (err) {
-            console.error('❌ Error al obtener productos:', err.message);
+            console.error('❌ Error al obtener artículos:', err.message);
             return res.status(500).json({ 
                 error: 'Error al obtener el inventario.' 
             });
@@ -35,7 +38,7 @@ exports.obtenerProductos = (req, res) => {
 
 /**
  * GET /api/productos/:id
- * Obtiene un producto específico por ID
+ * Obtiene un artículo específico por ID
  */
 exports.obtenerProductoPorId = (req, res) => {
     const { id } = req.params;
@@ -43,33 +46,35 @@ exports.obtenerProductoPorId = (req, res) => {
     // Validación: ID debe ser número
     if (isNaN(id) || parseInt(id) <= 0) {
         return res.status(400).json({ 
-            error: 'El ID del producto debe ser un número válido.' 
+            error: 'El ID del artículo debe ser un número válido.' 
         });
     }
 
     const sql = `
         SELECT 
-            id_producto, 
+            id_articulo, 
             codigo_barras, 
             nombre, 
-            precio, 
-            stock, 
+            precio_venta,
+            stock,
+            tipo_item,
+            permite_precio_variable,
             fecha_creacion
-        FROM productos 
-        WHERE id_producto = ?
+        FROM articulos 
+        WHERE id_articulo = ?
     `;
 
     db.get(sql, [parseInt(id)], (err, row) => {
         if (err) {
-            console.error('❌ Error al obtener producto:', err.message);
+            console.error('❌ Error al obtener artículo:', err.message);
             return res.status(500).json({ 
-                error: 'Error al obtener el producto.' 
+                error: 'Error al obtener el artículo.' 
             });
         }
 
         if (!row) {
             return res.status(404).json({ 
-                error: 'Producto no encontrado.' 
+                error: 'Artículo no encontrado.' 
             });
         }
 
@@ -79,85 +84,76 @@ exports.obtenerProductoPorId = (req, res) => {
 
 /**
  * POST /api/productos
- * Crea un nuevo producto en el inventario
- * 
+ * Crea un nuevo artículo en el inventario
+ *
  * Body requerido:
  * {
  *   "codigo_barras": "SKU123",
  *   "nombre": "Lápiz HB",
- *   "precio": 0.50,
- *   "stock": 100
+ *   "precio_venta": 0.50,
+ *   "stock": 100,
+ *   "tipo_item": "tangible",
+ *   "permite_precio_variable": 0
  * }
  */
 exports.crearProducto = (req, res) => {
-    let { codigo_barras, nombre, precio, stock } = req.body;
+    let { codigo_barras, nombre, precio_venta, stock, tipo_item, permite_precio_variable } = req.body;
 
-    // ========== VALIDACIÓN ROBUSTA ==========
+    // ...existing code...
 
-    // Validar nombre
-    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
-        return res.status(400).json({ 
-            error: 'El nombre del producto es obligatorio y debe ser texto.' 
-        });
-    }
-    nombre = nombre.trim();
-
-    // Validar precio
-    precio = parseFloat(precio);
-    if (isNaN(precio) || precio <= 0) {
-        return res.status(400).json({ 
-            error: 'El precio debe ser un número mayor a 0.' 
+    // Validar precio_venta
+    precio_venta = parseFloat(precio_venta);
+    if (isNaN(precio_venta) || precio_venta <= 0) {
+        return res.status(400).json({
+            error: 'El precio_venta debe ser un número mayor a 0.'
         });
     }
 
-    // Validar stock
-    stock = parseInt(stock);
-    if (isNaN(stock) || stock < 0) {
-        return res.status(400).json({ 
-            error: 'El stock debe ser un número no negativo.' 
+    // ...existing code...
+
+    // tipo_item debe ser válido
+    tipo_item = tipo_item || 'tangible';
+    if (!['tangible', 'servicio_rapido', 'tramite'].includes(tipo_item)) {
+        return res.status(400).json({
+            error: 'tipo_item debe ser: tangible, servicio_rapido o tramite'
         });
     }
 
-    // Código de barras (opcional, pero si viene debe ser válido)
-    if (codigo_barras) {
-        codigo_barras = String(codigo_barras).trim();
-        if (codigo_barras === '') {
-            codigo_barras = null; // Tratamos vacío como NULL
-        }
-    } else {
-        codigo_barras = null;
-    }
+    // permite_precio_variable debe ser 0 o 1
+    permite_precio_variable = permite_precio_variable ? 1 : 0;
 
     // ========== INSERCIÓN SEGURA (Prepared Statements) ==========
     const sql = `
-        INSERT INTO productos (codigo_barras, nombre, precio, stock)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO articulos (codigo_barras, nombre, precio_venta, stock, tipo_item, permite_precio_variable)
+        VALUES (?, ?, ?, ?, ?, ?)
     `;
 
-    db.run(sql, [codigo_barras, nombre, precio, stock], function(err) {
+    db.run(sql, [codigo_barras, nombre, precio_venta, stock, tipo_item, permite_precio_variable], function(err) {
         if (err) {
-            console.error('❌ Error al insertar producto:', err.message);
-            
+            console.error('❌ Error al insertar artículo:', err.message);
+
             // Manejar error de unicidad en código de barras
             if (err.message.includes('UNIQUE constraint failed')) {
                 return res.status(400).json({ 
-                    error: 'Ya existe un producto con este código de barras.' 
+                    error: 'Ya existe un artículo con este código de barras.'
                 });
             }
 
             return res.status(500).json({ 
-                error: 'Error al guardar el producto.' 
+                error: 'Error al guardar el artículo.'
             });
         }
 
         res.status(201).json({
-            message: 'Producto creado exitosamente',
+            message: 'Artículo creado exitosamente',
             producto: {
-                id_producto: this.lastID,
+                id_articulo: this.lastID,
                 codigo_barras,
                 nombre,
-                precio,
+                precio_venta,
                 stock,
+                tipo_item,
+                permite_precio_variable,
                 fecha_creacion: new Date().toISOString()
             }
         });
@@ -166,24 +162,26 @@ exports.crearProducto = (req, res) => {
 
 /**
  * PUT /api/productos/:id
- * Actualiza un producto existente
- * 
+ * Actualiza un artículo existente
+ *
  * Body esperado (campos opcionales):
  * {
  *   "codigo_barras": "SKU123_NEW",
  *   "nombre": "Lápiz HB - Nuevo",
- *   "precio": 0.60,
- *   "stock": 150
+ *   "precio_venta": 0.60,
+ *   "stock": 150,
+ *   "tipo_item": "tangible",
+ *   "permite_precio_variable": 0
  * }
  */
 exports.actualizarProducto = (req, res) => {
     const { id } = req.params;
-    let { codigo_barras, nombre, precio, stock } = req.body;
+    let { codigo_barras, nombre, precio_venta, stock, tipo_item, permite_precio_variable } = req.body;
 
     // Validar ID
     if (isNaN(id) || parseInt(id) <= 0) {
         return res.status(400).json({ 
-            error: 'El ID del producto debe ser un número válido.' 
+            error: 'El ID del artículo debe ser un número válido.'
         });
     }
 
@@ -199,14 +197,14 @@ exports.actualizarProducto = (req, res) => {
         actualizaciones.nombre = nombre.trim();
     }
 
-    if (precio !== undefined) {
-        precio = parseFloat(precio);
-        if (isNaN(precio) || precio <= 0) {
-            return res.status(400).json({ 
-                error: 'El precio debe ser un número mayor a 0.' 
+    if (precio_venta !== undefined) {
+        precio_venta = parseFloat(precio_venta);
+        if (isNaN(precio_venta) || precio_venta <= 0) {
+            return res.status(400).json({
+                error: 'El precio_venta debe ser un número mayor a 0.'
             });
         }
-        actualizaciones.precio = precio;
+        actualizaciones.precio_venta = precio_venta;
     }
 
     if (stock !== undefined) {
@@ -217,6 +215,19 @@ exports.actualizarProducto = (req, res) => {
             });
         }
         actualizaciones.stock = stock;
+    }
+
+    if (tipo_item !== undefined) {
+        if (!['tangible', 'servicio_rapido', 'tramite'].includes(tipo_item)) {
+            return res.status(400).json({
+                error: 'tipo_item debe ser: tangible, servicio_rapido o tramite'
+            });
+        }
+        actualizaciones.tipo_item = tipo_item;
+    }
+
+    if (permite_precio_variable !== undefined) {
+        actualizaciones.permite_precio_variable = permite_precio_variable ? 1 : 0;
     }
 
     if (codigo_barras !== undefined) {
@@ -239,32 +250,32 @@ exports.actualizarProducto = (req, res) => {
     const valores = Object.values(actualizaciones);
     const setClauses = campos.map(campo => `${campo} = ?`).join(', ');
 
-    const sql = `UPDATE productos SET ${setClauses} WHERE id_producto = ?`;
+    const sql = `UPDATE articulos SET ${setClauses} WHERE id_articulo = ?`;
     valores.push(parseInt(id));
 
     db.run(sql, valores, function(err) {
         if (err) {
-            console.error('❌ Error al actualizar producto:', err.message);
-            
+            console.error('❌ Error al actualizar artículo:', err.message);
+
             if (err.message.includes('UNIQUE constraint failed')) {
                 return res.status(400).json({ 
-                    error: 'Ya existe un producto con este código de barras.' 
+                    error: 'Ya existe un artículo con este código de barras.'
                 });
             }
 
             return res.status(500).json({ 
-                error: 'Error al actualizar el producto.' 
+                error: 'Error al actualizar el artículo.'
             });
         }
 
         if (this.changes === 0) {
             return res.status(404).json({ 
-                error: 'Producto no encontrado.' 
+                error: 'Artículo no encontrado.'
             });
         }
 
         res.json({
-            message: 'Producto actualizado exitosamente',
+            message: 'Artículo actualizado exitosamente',
             cambios: this.changes
         });
     });
@@ -272,10 +283,7 @@ exports.actualizarProducto = (req, res) => {
 
 /**
  * DELETE /api/productos/:id
- * Elimina un producto del inventario
- * 
- * NOTA: En sistemas reales, considera hacer eliminación lógica (soft delete)
- * en lugar de física, para mantener la integridad de registros históricos.
+ * Elimina un artículo del inventario
  */
 exports.eliminarProducto = (req, res) => {
     const { id } = req.params;
@@ -283,43 +291,43 @@ exports.eliminarProducto = (req, res) => {
     // Validar ID
     if (isNaN(id) || parseInt(id) <= 0) {
         return res.status(400).json({ 
-            error: 'El ID del producto debe ser un número válido.' 
+            error: 'El ID del artículo debe ser un número válido.' 
         });
     }
 
     // ========== VERIFICAR QUE EXISTE ==========
     db.get(
-        'SELECT id_producto FROM productos WHERE id_producto = ?',
+        'SELECT id_articulo FROM articulos WHERE id_articulo = ?',
         [parseInt(id)],
         (err, row) => {
             if (err) {
-                console.error('❌ Error verificando producto:', err.message);
+                console.error('❌ Error verificando artículo:', err.message);
                 return res.status(500).json({ 
-                    error: 'Error verificando el producto.' 
+                    error: 'Error verificando el artículo.' 
                 });
             }
 
             if (!row) {
                 return res.status(404).json({ 
-                    error: 'Producto no encontrado.' 
+                    error: 'Artículo no encontrado.' 
                 });
             }
 
             // ========== ELIMINAR ==========
             db.run(
-                'DELETE FROM productos WHERE id_producto = ?',
+                'DELETE FROM articulos WHERE id_articulo = ?',
                 [parseInt(id)],
                 function(err) {
                     if (err) {
-                        console.error('❌ Error al eliminar producto:', err.message);
+                        console.error('❌ Error al eliminar artículo:', err.message);
                         return res.status(500).json({ 
-                            error: 'Error al eliminar el producto.' 
+                            error: 'Error al eliminar el artículo.' 
                         });
                     }
 
                     res.json({
-                        message: 'Producto eliminado exitosamente',
-                        id_producto: parseInt(id)
+                        message: 'Artículo eliminado exitosamente',
+                        id_articulo: parseInt(id)
                     });
                 }
             );
@@ -329,7 +337,7 @@ exports.eliminarProducto = (req, res) => {
 
 /**
  * GET /api/productos/buscar?q=nombre
- * Busca productos por nombre o código de barras
+ * Busca artículos por nombre o código de barras
  */
 exports.buscarProductos = (req, res) => {
     const { q } = req.query;
@@ -343,22 +351,24 @@ exports.buscarProductos = (req, res) => {
     const termino = `%${q.trim()}%`;
     const sql = `
         SELECT 
-            id_producto, 
+            id_articulo, 
             codigo_barras, 
             nombre, 
-            precio, 
-            stock, 
+            precio_venta,
+            stock,
+            tipo_item,
+            permite_precio_variable,
             fecha_creacion
-        FROM productos 
+        FROM articulos 
         WHERE nombre LIKE ? OR codigo_barras LIKE ?
         ORDER BY nombre ASC
     `;
 
     db.all(sql, [termino, termino], (err, rows) => {
         if (err) {
-            console.error('❌ Error al buscar productos:', err.message);
+            console.error('❌ Error al buscar artículos:', err.message);
             return res.status(500).json({ 
-                error: 'Error al buscar productos.' 
+                error: 'Error al buscar artículos.' 
             });
         }
 

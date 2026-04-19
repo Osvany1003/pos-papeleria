@@ -185,29 +185,27 @@ exports.crearVenta = (req, res) => {
         }
     }
 
-    // ========== VERIFICAR STOCK DISPONIBLE (solo para productos) ==========
-    // NOTA: Si es_servicio es true, saltamos la validación de stock
+    // ========== VERIFICAR STOCK (solo para artículos tangibles) ==========
+    // Para servicios rápidos y trámites, saltamos validación de stock
     const promesas = detalles.map(detalle => {
         return new Promise((resolve, reject) => {
-            // Si es un servicio, no validamos stock
-            if (detalle.es_servicio === true) {
-                resolve({ es_servicio: true });
-                return;
-            }
-
             db.get(
-                'SELECT id_producto, stock, nombre FROM productos WHERE id_producto = ?',
-                [parseInt(detalle.id_producto)],
+                'SELECT id_articulo, stock, nombre, tipo_item FROM articulos WHERE id_articulo = ?',
+                [parseInt(detalle.id_articulo)],
                 (err, row) => {
                     if (err) reject(err);
-                    if (!row) reject(new Error(`Producto ${detalle.id_producto} no existe`));
+                    if (!row) reject(new Error(`Artículo ${detalle.id_articulo} no existe`));
 
-                    const cantidad = parseInt(detalle.cantidad);
-                    if (row.stock < cantidad) {
-                        reject(new Error(
-                            `Stock insuficiente. ${row.nombre} disponibles: ${row.stock}, solicitados: ${cantidad}`
-                        ));
+                    // Si es tangible, validar stock
+                    if (row.tipo_item === 'tangible') {
+                        const cantidad = parseInt(detalle.cantidad);
+                        if (row.stock < cantidad) {
+                            reject(new Error(
+                                `Stock insuficiente. ${row.nombre} disponibles: ${row.stock}, solicitados: ${cantidad}`
+                            ));
+                        }
                     }
+                    // Para servicios rápidos y trámites, no validamos stock
                     resolve(row);
                 }
             );
@@ -217,7 +215,7 @@ exports.crearVenta = (req, res) => {
     Promise.all(promesas)
         .then(() => ejecutarTransaccionVenta(res, totalNum, detalles))
         .catch(error => {
-            console.error('❌ Error validando stock:', error.message);
+            console.error('❌ Error validando artículos:', error.message);
             return res.status(400).json({
                 error: error.message
             });
@@ -262,7 +260,7 @@ function ejecutarTransaccionVenta(res, total, detalles) {
 
             detalles.forEach((detalle, index) => {
                 const sqlDetalle = `
-                    INSERT INTO detalles_venta (id_venta, id_producto, id_servicio, cantidad, subtotal)
+                    INSERT INTO detalles_venta (id_venta, id_articulo, cantidad, subtotal, precio_venta)
                     VALUES (?, ?, ?, ?, ?)
                 `;
 
@@ -270,10 +268,10 @@ function ejecutarTransaccionVenta(res, total, detalles) {
                     sqlDetalle,
                     [
                         id_venta,
-                        detalle.id_producto ? parseInt(detalle.id_producto) : null,
-                        detalle.id_servicio || null,
+                        parseInt(detalle.id_articulo),
                         parseInt(detalle.cantidad),
-                        parseFloat(detalle.subtotal)
+                        parseFloat(detalle.subtotal),
+                        parseFloat(detalle.precio_venta || detalle.subtotal / detalle.cantidad)
                     ],
                     (detalleErr) => {
                         if (detalleErr) {
@@ -303,15 +301,54 @@ function ejecutarTransaccionVenta(res, total, detalles) {
 }
 
 /**
- * Actualiza el stock de productos después de la venta
- * NOTA: Solo actualiza stock si el item NO es servicio (es_servicio !== true)
+ * Actualiza el stock de artículos después de la venta
+ * NOTA: Solo actualiza stock si el artículo es tipo 'tangible'
+ * Para 'servicio_rapido' y 'tramite', no se descuenta stock
  */
 function actualizarStockProductos(res, id_venta, total, detalles) {
-    // Filtrar solo productos (no servicios)
-    const productosParaActualizar = detalles.filter(d => d.es_servicio !== true);
+    // Consultar tipo_item para cada artículo
+    let procesados = 0;
+    const articulosConTipo = [];
 
-    // Si no hay productos para actualizar, hacer COMMIT directamente
-    if (productosParaActualizar.length === 0) {
+    detalles.forEach((detalle, idx) => {
+        db.get(
+            'SELECT tipo_item FROM articulos WHERE id_articulo = ?',
+            [parseInt(detalle.id_articulo)],
+            (err, row) => {
+                if (err) {
+                    console.error('❌ Error consultando tipo_item:', err.message);
+                    return db.run('ROLLBACK', () => {
+                        res.status(500).json({
+                            error: 'Error al procesar la venta.'
+                        });
+                    });
+                }
+
+                articulosConTipo.push({
+                    ...detalle,
+                    tipo_item: row ? row.tipo_item : 'tangible'
+                });
+
+                procesados++;
+
+                // Una vez consultados todos, proceder a actualizar stock
+                if (procesados === detalles.length) {
+                    realizarActualizacionesStock(res, id_venta, total, articulosConTipo, detalles.length);
+                }
+            }
+        );
+    });
+}
+
+/**
+ * Realiza las actualizaciones de stock solo para artículos tangibles
+ */
+function realizarActualizacionesStock(res, id_venta, total, articulosConTipo, totalItems) {
+    // Filtrar solo artículos tangibles
+    const tangiblesParaActualizar = articulosConTipo.filter(a => a.tipo_item === 'tangible');
+
+    // Si no hay tangibles, hacer COMMIT directamente
+    if (tangiblesParaActualizar.length === 0) {
         db.run('COMMIT', (commitErr) => {
             if (commitErr) {
                 console.error('❌ Error en COMMIT:', commitErr.message);
@@ -326,7 +363,7 @@ function actualizarStockProductos(res, id_venta, total, detalles) {
                 venta: {
                     id_venta,
                     total,
-                    cantidad_productos: detalles.length,
+                    cantidad_items: totalItems,
                     fecha: new Date().toISOString()
                 }
             });
@@ -336,16 +373,16 @@ function actualizarStockProductos(res, id_venta, total, detalles) {
 
     let actualizacionesRealizadas = 0;
 
-    productosParaActualizar.forEach((detalle) => {
+    tangiblesParaActualizar.forEach((detalle) => {
         const sqlUpdate = `
-            UPDATE productos 
+            UPDATE articulos 
             SET stock = stock - ? 
-            WHERE id_producto = ?
+            WHERE id_articulo = ?
         `;
 
         db.run(
             sqlUpdate,
-            [parseInt(detalle.cantidad), parseInt(detalle.id_producto)],
+            [parseInt(detalle.cantidad), parseInt(detalle.id_articulo)],
             (updateErr) => {
                 if (updateErr) {
                     console.error('❌ Error actualizando stock:', updateErr.message);
@@ -359,7 +396,7 @@ function actualizarStockProductos(res, id_venta, total, detalles) {
                 actualizacionesRealizadas++;
 
                 // Una vez actualizado todo, hacer COMMIT
-                if (actualizacionesRealizadas === productosParaActualizar.length) {
+                if (actualizacionesRealizadas === tangiblesParaActualizar.length) {
                     db.run('COMMIT', (commitErr) => {
                         if (commitErr) {
                             console.error('❌ Error en COMMIT:', commitErr.message);
@@ -374,7 +411,7 @@ function actualizarStockProductos(res, id_venta, total, detalles) {
                             venta: {
                                 id_venta,
                                 total,
-                                cantidad_productos: detalles.length,
+                                cantidad_items: totalItems,
                                 fecha: new Date().toISOString()
                             }
                         });

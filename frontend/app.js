@@ -128,28 +128,31 @@ async function buscarProductosParaVenta(termino) {
 }
 
 /**
- * Renderiza los resultados de búsqueda
+ * Renderiza los resultados de búsqueda de artículos
  */
-function mostrarResultadosBusqueda(productos, contenedor) {
-    if (productos.length === 0) {
-        contenedor.innerHTML = '<p class="info">No hay productos encontrados</p>';
+function mostrarResultadosBusqueda(articulos, contenedor) {
+    if (articulos.length === 0) {
+        contenedor.innerHTML = '<p class="info">No hay artículos encontrados</p>';
         return;
     }
 
-    contenedor.innerHTML = productos.map(p => `
+    contenedor.innerHTML = articulos.map(art => `
         <div class="producto-item">
             <div class="producto-info">
-                <strong>${p.nombre}</strong>
-                <small>Código: ${p.codigo_barras || 'N/A'}</small>
-                <small class="stock ${p.stock <= 5 ? 'low-stock' : 'ok-stock'}">
-                    Stock: ${p.stock}
-                </small>
+                <strong>${art.nombre}</strong>
+                <small>Código: ${art.codigo_barras || 'N/A'}</small>
+                <small>Tipo: ${art.tipo_item}</small>
+                ${art.tipo_item === 'tangible' ? `
+                    <small class="stock ${art.stock <= 5 ? 'low-stock' : 'ok-stock'}">
+                        Stock: ${art.stock}
+                    </small>
+                ` : '<small style="color: #16a085;">Servicio</small>'}
             </div>
             <div class="producto-precio">
-                <strong>$${p.precio.toFixed(2)}</strong>
+                <strong>$${art.precio_venta.toFixed(2)}</strong>
                 <button 
                     class="btn-icon-add" 
-                    onclick="agregarAlCarrito(${p.id_producto}, '${p.nombre}', ${p.precio}, ${p.stock})"
+                    onclick="agregarAlCarrito(${art.id_articulo}, '${art.nombre}', ${art.precio_venta}, ${art.stock}, ${art.permite_precio_variable}, '${art.tipo_item}')"
                     title="Agregar al carrito"
                 >
                     <span class="material-icons">add_shopping_cart</span>
@@ -245,35 +248,63 @@ function agregarServicioAlCarrito(id, precioDefault, tipo = 'precio') {
 }
 
 /**
- * Agrega un producto al carrito
+ * Agrega un artículo al carrito
+ * Si permite_precio_variable es true, solicita precio antes de agregar
  */
-function agregarAlCarrito(id_producto, nombre, precio, stockDisponible) {
-    // Cantidad por defecto
-    const cantidad = 1;
+function agregarAlCarrito(id_articulo, nombre, precio_venta, stockDisponible, permitePrecioVariable, tipoItem) {
+    let cantidadItem = 1;
+    let precioFinal = precio_venta;
 
-    // Validar stock
-    if (stockDisponible < cantidad) {
-        alert(`❌ Stock insuficiente. Disponibles: ${stockDisponible}`);
-        return;
+    // Si es artículo tangible, validar stock
+    if (tipoItem === 'tangible') {
+        if (stockDisponible < cantidadItem) {
+            alert(`❌ Stock insuficiente. Disponibles: ${stockDisponible}`);
+            return;
+        }
+    }
+
+    // Si permite precio variable, solicitar precio
+    if (permitePrecioVariable) {
+        const precioIngresado = prompt(`Ingresa el precio para ${nombre}:`, precioVenta.toFixed(2));
+
+        if (precioIngresado === null) {
+            return;
+        }
+
+        const precioNum = parseFloat(precioIngresado);
+        if (isNaN(precioNum) || precioNum <= 0) {
+            alert('❌ El precio debe ser un número válido mayor a 0');
+            return;
+        }
+
+        precioFinal = precioNum;
     }
 
     // Buscar si ya existe en el carrito
-    const itemExistente = app.carrito.find(item => item.id_producto === id_producto);
+    const itemExistente = app.carrito.find(item => item.id_articulo === id_articulo);
 
     if (itemExistente) {
-        const nuevaCantidad = itemExistente.cantidad + cantidad;
-        if (stockDisponible < nuevaCantidad) {
-            alert(`❌ No hay suficiente stock. Máximo: ${stockDisponible}`);
-            return;
+        if (tipoItem === 'tangible') {
+            const nuevaCantidad = itemExistente.cantidad + cantidadItem;
+            if (stockDisponible < nuevaCantidad) {
+                alert(`❌ No hay suficiente stock. Máximo: ${stockDisponible}`);
+                return;
+            }
+            itemExistente.cantidad = nuevaCantidad;
+            itemExistente.subtotal = itemExistente.cantidad * itemExistente.precio_venta;
+        } else {
+            // Para servicios, sumar al subtotal
+            itemExistente.subtotal += precioFinal;
         }
-        itemExistente.cantidad = nuevaCantidad;
     } else {
         app.carrito.push({
-            id_producto,
+            id_articulo,
             nombre,
-            precio,
-            cantidad,
-            subtotal: precio * cantidad
+            precio_venta: precioFinal,
+            cantidad: cantidadItem,
+            subtotal: precioFinal * cantidadItem,
+            tipo_item: tipoItem,
+            permite_precio_variable: permitePrecioVariable
         });
     }
 
@@ -282,7 +313,43 @@ function agregarAlCarrito(id_producto, nombre, precio, stockDisponible) {
 }
 
 /**
- * Renderiza el carrito (soporta productos y servicios)
+ * Busca un servicio por nombre exacto y lo agrega al carrito
+ * Usada por los botones de "Acceso Rápido a Servicios"
+ */
+async function agregarServicioPorNombre(nombreServicio) {
+    try {
+        const response = await fetch(`${ENDPOINTS.PRODUCTOS}/buscar?q=${encodeURIComponent(nombreServicio)}`);
+        if (!response.ok) throw new Error('Error en búsqueda');
+
+        const data = await response.json();
+        const articulos = data.data || [];
+
+        // Buscar coincidencia exacta
+        const servicio = articulos.find(art => art.nombre.toLowerCase() === nombreServicio.toLowerCase());
+
+        if (!servicio) {
+            alert(`❌ Servicio "${nombreServicio}" no encontrado`);
+            return;
+        }
+
+        // Agregar al carrito usando la función existente
+        agregarAlCarrito(
+            servicio.id_articulo,
+            servicio.nombre,
+            servicio.precio_venta,
+            0,
+            servicio.permite_precio_variable,
+            servicio.tipo_item
+        );
+
+    } catch (error) {
+        console.error('Error buscando servicio:', error);
+        alert(`❌ Error al buscar servicio: ${error.message}`);
+    }
+}
+
+/**
+ * Renderiza el carrito con artículos v2.0
  */
 function renderizarCarrito() {
     const carritoItems = document.getElementById('carrito-items');
@@ -297,10 +364,11 @@ function renderizarCarrito() {
     carritoItems.innerHTML = app.carrito.map((item, index) => {
         subtotal += item.subtotal;
         // Mostrar badge si es servicio
-        const badgeServicio = item.es_servicio ? '<span class="badge badge-info">Servicio</span>' : '';
-        
+        const esServicio = item.tipo_item !== 'tangible';
+        const badgeServicio = esServicio ? '<span class="badge badge-info">Servicio</span>' : '';
+
         return `
-            <tr ${item.es_servicio ? 'class="row-servicio"' : ''}>
+            <tr ${esServicio ? 'class="row-servicio"' : ''}>
                 <td>${item.nombre} ${badgeServicio}</td>
                 <td>
                     <input 
@@ -311,7 +379,7 @@ function renderizarCarrito() {
                         class="cantidad-input"
                     >
                 </td>
-                <td>$${item.precio.toFixed(2)}</td>
+                <td>$${item.precio_venta.toFixed(2)}</td>
                 <td>$${item.subtotal.toFixed(2)}</td>
                 <td>
                     <button 
@@ -341,7 +409,7 @@ function actualizarCantidadCarrito(index, nuevaCantidad) {
     }
 
     app.carrito[index].cantidad = cantidad;
-    app.carrito[index].subtotal = app.carrito[index].precio * cantidad;
+    app.carrito[index].subtotal = app.carrito[index].precio_venta * cantidad;
     renderizarCarrito();
 }
 
@@ -390,26 +458,24 @@ function limpiarCarrito() {
 
 /**
  * FUNCIÓN CRÍTICA: Cobra la venta
- * Envía transacción al backend con validación de stock
- * Soporta tanto productos como servicios
+ * Envía transacción al backend v2.0 con artículos
  */
 async function cobrarVenta() {
     // Validar carrito
     if (app.carrito.length === 0) {
-        alert('❌ El carrito está vacío. Agrega productos antes de cobrar.');
+        alert('❌ El carrito está vacío. Agrega artículos antes de cobrar.');
         return;
     }
 
     // Calcular total
     const total = app.carrito.reduce((sum, item) => sum + item.subtotal, 0);
 
-    // Preparar payload - incluir bandera es_servicio en cada detalle
+    // Preparar payload para BD v2.0
     const detalles = app.carrito.map(item => ({
-        id_producto: item.id_producto || null,  // null para servicios
-        id_servicio: item.id_servicio || null,  // ID del servicio si aplica
+        id_articulo: item.id_articulo,
         cantidad: item.cantidad,
         subtotal: item.subtotal,
-        es_servicio: item.es_servicio || false  // Bandera crítica
+        precio_venta: item.precio_venta
     }));
 
     const payload = {
@@ -417,7 +483,7 @@ async function cobrarVenta() {
         detalles
     };
 
-    console.log('📤 Enviando venta al backend:', payload);
+    console.log('📤 Enviando venta al backend v2.0:', payload);
 
     // Mostrar loading
     const btnCobrar = document.getElementById('btn-cobrar');
@@ -480,32 +546,35 @@ async function cargarProductosInventario() {
 }
 
 /**
- * Renderiza la tabla de productos
+ * Renderiza la tabla de artículos v2.0
  */
-function renderizarTablaProductos(productos) {
+function renderizarTablaProductos(articulos) {
     const tabla = document.getElementById('tabla-productos');
 
-    if (productos.length === 0) {
-        tabla.innerHTML = '<tr class="empty-row"><td colspan="6">No hay productos</td></tr>';
+    if (articulos.length === 0) {
+        tabla.innerHTML = '<tr class="empty-row"><td colspan="7">No hay artículos</td></tr>';
         return;
     }
 
-    tabla.innerHTML = productos.map(p => `
+    tabla.innerHTML = articulos.map(art => `
         <tr>
-            <td>#${p.id_producto}</td>
-            <td>${p.codigo_barras || '-'}</td>
-            <td><strong>${p.nombre}</strong></td>
-            <td>$${p.precio.toFixed(2)}</td>
+            <td>#${art.id_articulo}</td>
+            <td>${art.codigo_barras || '-'}</td>
+            <td><strong>${art.nombre}</strong></td>
+            <td>${art.tipo_item}</td>
+            <td>$${art.precio_venta.toFixed(2)}</td>
             <td>
-                <span class="badge ${p.stock <= 5 ? 'badge-danger' : 'badge-success'}">
-                    ${p.stock} unidades
-                </span>
+                ${art.tipo_item === 'tangible' ? `
+                    <span class="badge ${art.stock <= 5 ? 'badge-danger' : 'badge-success'}">
+                        ${art.stock} unidades
+                    </span>
+                ` : '<span class="badge badge-info">Sin stock</span>'}
             </td>
             <td class="acciones-cell">
-                <button class="btn-icon edit" onclick="abrirEdicionProducto(${p.id_producto})" title="Editar">
+                <button class="btn-icon edit" onclick="abrirEdicionProducto(${art.id_articulo})" title="Editar">
                     <span class="material-icons">edit</span>
                 </button>
-                <button class="btn-icon delete" onclick="eliminarProducto(${p.id_producto})" title="Eliminar">
+                <button class="btn-icon delete" onclick="eliminarProducto(${art.id_articulo})" title="Eliminar">
                     <span class="material-icons">delete</span>
                 </button>
             </td>
@@ -514,25 +583,27 @@ function renderizarTablaProductos(productos) {
 }
 
 /**
- * Crea un nuevo producto
+ * Crea un nuevo artículo
  */
 async function crearProducto() {
     const codigoBarras = document.getElementById('codigo-barras').value.trim() || null;
     const nombre = document.getElementById('nombre-producto').value.trim();
-    const precio = parseFloat(document.getElementById('precio-producto').value);
+    const precioVenta = parseFloat(document.getElementById('precio-producto').value);
     const stock = parseInt(document.getElementById('stock-producto').value);
 
     // Validación básica
     if (!nombre) {
-        alert('El nombre del producto es obligatorio');
+        alert('El nombre del artículo es obligatorio');
         return;
     }
 
     const payload = {
         codigo_barras: codigoBarras,
         nombre,
-        precio,
-        stock
+        precio_venta: precioVenta,
+        stock,
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
     };
 
     try {
@@ -545,10 +616,10 @@ async function crearProducto() {
         const resultado = await response.json();
 
         if (!response.ok) {
-            throw new Error(resultado.error || 'Error al crear producto');
+            throw new Error(resultado.error || 'Error al crear artículo');
         }
 
-        alert(`✅ Producto "${nombre}" creado exitosamente`);
+        alert(`✅ Artículo "${nombre}" creado exitosamente`);
         document.getElementById('formulario-producto').reset();
         cargarProductosInventario();
 
@@ -559,41 +630,41 @@ async function crearProducto() {
 }
 
 /**
- * Abre el modal para editar un producto
+ * Abre el modal para editar un artículo
  */
 async function abrirEdicionProducto(id) {
     try {
         const response = await fetch(`${ENDPOINTS.PRODUCTOS}/${id}`);
-        if (!response.ok) throw new Error('Producto no encontrado');
+        if (!response.ok) throw new Error('Artículo no encontrado');
 
         const data = await response.json();
-        const producto = data.data;
+        const articulo = data.data;
 
         // Rellenar formulario
-        document.getElementById('edit-producto-id').value = producto.id_producto;
-        document.getElementById('edit-codigo-barras').value = producto.codigo_barras || '';
-        document.getElementById('edit-nombre-producto').value = producto.nombre;
-        document.getElementById('edit-precio-producto').value = producto.precio;
-        document.getElementById('edit-stock-producto').value = producto.stock;
+        document.getElementById('edit-producto-id').value = articulo.id_articulo;
+        document.getElementById('edit-codigo-barras').value = articulo.codigo_barras || '';
+        document.getElementById('edit-nombre-producto').value = articulo.nombre;
+        document.getElementById('edit-precio-producto').value = articulo.precio_venta;
+        document.getElementById('edit-stock-producto').value = articulo.stock;
 
         // Mostrar modal
         document.getElementById('modal-editar-producto').style.display = 'flex';
 
     } catch (error) {
         console.error('Error:', error);
-        alert('Error al cargar el producto');
+        alert('Error al cargar el artículo');
     }
 }
 
 /**
- * Guarda la edición de un producto
+ * Guarda la edición de un artículo
  */
 async function guardarEdicionProducto() {
     const id = document.getElementById('edit-producto-id').value;
     const payload = {
         codigo_barras: document.getElementById('edit-codigo-barras').value.trim() || null,
         nombre: document.getElementById('edit-nombre-producto').value.trim(),
-        precio: parseFloat(document.getElementById('edit-precio-producto').value),
+        precio_venta: parseFloat(document.getElementById('edit-precio-producto').value),
         stock: parseInt(document.getElementById('edit-stock-producto').value)
     };
 
@@ -610,7 +681,7 @@ async function guardarEdicionProducto() {
             throw new Error(resultado.error || 'Error al actualizar');
         }
 
-        alert('✅ Producto actualizado');
+        alert('✅ Artículo actualizado');
         document.getElementById('modal-editar-producto').style.display = 'none';
         cargarProductosInventario();
 
@@ -621,10 +692,10 @@ async function guardarEdicionProducto() {
 }
 
 /**
- * Elimina un producto
+ * Elimina un artículo
  */
 async function eliminarProducto(id) {
-    if (!confirm('¿Seguro de eliminar este producto?')) return;
+    if (!confirm('¿Seguro de eliminar este artículo?')) return;
 
     try {
         const response = await fetch(`${ENDPOINTS.PRODUCTOS}/${id}`, {
@@ -637,7 +708,7 @@ async function eliminarProducto(id) {
             throw new Error(resultado.error || 'Error al eliminar');
         }
 
-        alert('✅ Producto eliminado');
+        alert('✅ Artículo eliminado');
         cargarProductosInventario();
 
     } catch (error) {
