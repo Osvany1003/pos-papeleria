@@ -22,21 +22,22 @@ db.run("PRAGMA foreign_keys = ON", (err) => {
 });
 
 /**
- * Inicializa las tres tablas principales del sistema:
- * - productos: Catálogo de artículos con stock
+ * Inicializa las tres tablas principales del sistema v2.0:
+ * - articulos: Catálogo de artículos (productos y servicios)
  * - ventas: Encabezado de cada transacción
- * - detalles_venta: Líneas de productos en cada venta
+ * - detalles_venta: Líneas de artículos en cada venta
  */
 function inicializarTablas() {
-    // Tabla 1: PRODUCTOS (Inventario) - Ahora soporta servicios
-    const sqlProductos = `
-        CREATE TABLE IF NOT EXISTS productos (
-            id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
+    // Tabla 1: ARTICULOS (Inventario v2.0 - Productos y Servicios)
+    const sqlArticulos = `
+        CREATE TABLE IF NOT EXISTS articulos (
+            id_articulo INTEGER PRIMARY KEY AUTOINCREMENT,
             codigo_barras TEXT UNIQUE,
             nombre TEXT NOT NULL,
-            precio REAL NOT NULL,
+            precio_venta REAL NOT NULL,
             stock INTEGER NOT NULL DEFAULT 0,
-            es_servicio INTEGER DEFAULT 0,
+            tipo_item TEXT DEFAULT 'tangible',
+            permite_precio_variable INTEGER DEFAULT 0,
             fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP
         )
     `;
@@ -50,26 +51,26 @@ function inicializarTablas() {
         )
     `;
 
-    // Tabla 3: DETALLES_VENTA (Línea a línea de cada venta - soporta servicios)
+    // Tabla 3: DETALLES_VENTA (Línea a línea de cada venta v2.0)
     const sqlDetallesVenta = `
         CREATE TABLE IF NOT EXISTS detalles_venta (
             id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
             id_venta INTEGER NOT NULL,
-            id_producto INTEGER,
-            id_servicio TEXT,
+            id_articulo INTEGER NOT NULL,
             cantidad INTEGER NOT NULL,
             subtotal REAL NOT NULL,
+            precio_venta REAL NOT NULL,
             FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
-            FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+            FOREIGN KEY (id_articulo) REFERENCES articulos(id_articulo)
         )
     `;
 
     // Ejecutamos en secuencia
-    db.run(sqlProductos, (err) => {
+    db.run(sqlArticulos, (err) => {
         if (err) {
-            console.error('❌ Error creando tabla productos:', err.message);
+            console.error('❌ Error creando tabla articulos:', err.message);
         } else {
-            console.log('✅ Tabla "productos" verificada/creada.');
+            console.log('✅ Tabla "articulos" verificada/creada.');
         }
     });
 

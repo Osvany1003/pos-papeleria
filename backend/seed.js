@@ -1,115 +1,167 @@
 /**
- * SEED: Datos iniciales para tests
- * Crea productos de prueba incluyendo tijeras
+ * SEED: Datos iniciales para BD v2.0
+ * Crea artículos de prueba (productos y servicios)
  *
  * Ejecutar: node backend/seed.js
  */
 
 const db = require('./database');
 
-// Productos de prueba
-const productos = [
+// Artículos v2.0 (Productos y Servicios)
+const articulos = [
+    // ===== PRODUCTOS (tipo_item: tangible) =====
     {
         codigo_barras: 'TIJ001',
         nombre: 'Tijeras Escolares 5"',
-        precio: 2.50,
+        precio_venta: 2.50,
         stock: 50,
-        es_servicio: 0
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
     },
     {
         codigo_barras: 'TIJ002',
         nombre: 'Tijeras de Precisión 7"',
-        precio: 5.99,
+        precio_venta: 5.99,
         stock: 30,
-        es_servicio: 0
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
     },
     {
         codigo_barras: 'BOL001',
         nombre: 'Bolígrafo Negro',
-        precio: 0.75,
+        precio_venta: 0.75,
         stock: 200,
-        es_servicio: 0
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
     },
     {
         codigo_barras: 'BOL002',
         nombre: 'Bolígrafo Azul',
-        precio: 0.75,
+        precio_venta: 0.75,
         stock: 180,
-        es_servicio: 0
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
     },
     {
         codigo_barras: 'LAP001',
         nombre: 'Lápiz HB',
-        precio: 0.50,
+        precio_venta: 0.50,
         stock: 300,
-        es_servicio: 0
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
     },
     {
         codigo_barras: 'CUA001',
         nombre: 'Cuaderno A4 100 hojas',
-        precio: 3.99,
+        precio_venta: 3.99,
         stock: 75,
-        es_servicio: 0
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
     },
     {
         codigo_barras: 'MOC001',
         nombre: 'Mochila Escolar',
-        precio: 15.99,
+        precio_venta: 15.99,
         stock: 20,
-        es_servicio: 0
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
     },
     {
         codigo_barras: 'PEG001',
         nombre: 'Pegamento Escolar 40g',
-        precio: 1.25,
+        precio_venta: 1.25,
         stock: 120,
-        es_servicio: 0
+        tipo_item: 'tangible',
+        permite_precio_variable: 0
+    },
+
+    // ===== SERVICIOS (tipo_item: servicio_rapido) =====
+    {
+        codigo_barras: null,
+        nombre: 'Copia B/N',
+        precio_venta: 0.50,
+        stock: 0,
+        tipo_item: 'servicio_rapido',
+        permite_precio_variable: 1
+    },
+    {
+        codigo_barras: null,
+        nombre: 'Copia Color',
+        precio_venta: 2.00,
+        stock: 0,
+        tipo_item: 'servicio_rapido',
+        permite_precio_variable: 1
+    },
+    {
+        codigo_barras: null,
+        nombre: 'Ciber Tiempo',
+        precio_venta: 0.25,
+        stock: 0,
+        tipo_item: 'servicio_rapido',
+        permite_precio_variable: 1
+    },
+
+    // ===== TRÁMITES (tipo_item: tramite) =====
+    {
+        codigo_barras: null,
+        nombre: 'Acta Nacimiento',
+        precio_venta: 120.00,
+        stock: 0,
+        tipo_item: 'tramite',
+        permite_precio_variable: 0
+    },
+    {
+        codigo_barras: null,
+        nombre: 'CURP',
+        precio_venta: 150.00,
+        stock: 0,
+        tipo_item: 'tramite',
+        permite_precio_variable: 0
     }
 ];
 
-console.log('🌱 Iniciando seed de productos...\n');
+console.log('🌱 Inicializando BD v2.0 con artículos...\n');
 
-// Esperar a que las tablas se creen (500ms debería ser suficiente)
+// Esperar a que las tablas se creen (1 segundo)
 setTimeout(() => {
-    // Limpiar tabla anterior (opcional - comentar si quieres mantener datos)
-    // db.run('DELETE FROM productos', (err) => {
-    //     if (err) console.error('Error limpiando tabla:', err);
-    // });
+    let articulosInsertados = 0;
 
-    let productosInsertados = 0;
+    articulos.forEach((articulo, index) => {
+        const sql = `
+            INSERT OR REPLACE INTO articulos (codigo_barras, nombre, precio_venta, stock, tipo_item, permite_precio_variable)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
 
-    productos.forEach((producto, index) => {
-    const sql = `
-        INSERT OR REPLACE INTO productos (codigo_barras, nombre, precio, stock, es_servicio)
-        VALUES (?, ?, ?, ?, ?)
-    `;
+        db.run(
+            sql,
+            [
+                articulo.codigo_barras,
+                articulo.nombre,
+                articulo.precio_venta,
+                articulo.stock,
+                articulo.tipo_item,
+                articulo.permite_precio_variable
+            ],
+            function(err) {
+                if (err) {
+                    console.error(`❌ Error insertando ${articulo.nombre}:`, err.message);
+                } else {
+                    articulosInsertados++;
+                    const tipo = articulo.tipo_item === 'tangible' ? '📦' :
+                                 articulo.tipo_item === 'servicio_rapido' ? '⚡' : '📋';
+                    console.log(`✅ ${tipo} ${articulo.nombre} - Precio: $${articulo.precio_venta.toFixed(2)}`);
+                }
 
-    db.run(
-        sql,
-        [
-            producto.codigo_barras,
-            producto.nombre,
-            producto.precio,
-            producto.stock,
-            producto.es_servicio
-        ],
-        function(err) {
-            if (err) {
-                console.error(`❌ Error insertando ${producto.nombre}:`, err.message);
-            } else {
-                productosInsertados++;
-                console.log(`✅ ${producto.nombre} - Stock: ${producto.stock} - Precio: $${producto.precio.toFixed(2)}`);
+                // Si es el último artículo, mostrar resumen
+                if (index === articulos.length - 1) {
+                    setTimeout(() => {
+                        console.log(`\n📊 Seed completado: ${articulosInsertados}/${articulos.length} artículos insertados`);
+                        console.log('\n✅ BD v2.0 lista para usar\n');
+                        process.exit(0);
+                    }, 500);
+                }
             }
-
-            // Si es el último producto, mostrar resumen
-            if (index === productos.length - 1) {
-                setTimeout(() => {
-                    console.log(`\n📊 Seed completado: ${productosInsertados}/${productos.length} productos insertados`);
-                    process.exit(0);
-                }, 500);
-            }
-        }
-    );
+        );
     });
 }, 1000);
 
