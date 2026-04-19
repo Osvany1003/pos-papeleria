@@ -50,12 +50,13 @@ function inicializarTablas() {
         )
     `;
 
-    // Tabla 3: DETALLES_VENTA (Línea a línea de cada venta)
+    // Tabla 3: DETALLES_VENTA (Línea a línea de cada venta - soporta servicios)
     const sqlDetallesVenta = `
         CREATE TABLE IF NOT EXISTS detalles_venta (
             id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
             id_venta INTEGER NOT NULL,
-            id_producto INTEGER NOT NULL,
+            id_producto INTEGER,
+            id_servicio TEXT,
             cantidad INTEGER NOT NULL,
             subtotal REAL NOT NULL,
             FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),

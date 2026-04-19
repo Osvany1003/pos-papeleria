@@ -150,26 +150,38 @@ exports.crearVenta = (req, res) => {
 
     // Validar estructura de cada detalle
     for (const detalle of detalles) {
-        const { id_producto, cantidad, subtotal } = detalle;
+        const { cantidad, subtotal, es_servicio } = detalle;
 
-        if (isNaN(id_producto) || parseInt(id_producto) <= 0) {
-            return res.status(400).json({
-                error: 'Cada detalle debe tener un id_producto válido.'
-            });
-        }
-
+        // Validar cantidad
         const cantidadNum = parseInt(cantidad);
         if (isNaN(cantidadNum) || cantidadNum <= 0) {
             return res.status(400).json({
-                error: 'La cantidad de cada producto debe ser mayor a 0.'
+                error: 'La cantidad de cada item debe ser mayor a 0.'
             });
         }
 
+        // Validar subtotal
         const subtotalNum = parseFloat(subtotal);
         if (isNaN(subtotalNum) || subtotalNum <= 0) {
             return res.status(400).json({
-                error: 'El subtotal de cada producto debe ser mayor a 0.'
+                error: 'El subtotal de cada item debe ser mayor a 0.'
             });
+        }
+
+        // Si es servicio, validar id_servicio
+        if (es_servicio === true) {
+            if (!detalle.id_servicio) {
+                return res.status(400).json({
+                    error: 'Los servicios deben incluir id_servicio.'
+                });
+            }
+        } else {
+            // Si es producto, validar id_producto
+            if (isNaN(detalle.id_producto) || parseInt(detalle.id_producto) <= 0) {
+                return res.status(400).json({
+                    error: 'Cada producto debe tener un id_producto válido.'
+                });
+            }
         }
     }
 
@@ -246,29 +258,35 @@ function ejecutarTransaccionVenta(res, total, detalles) {
 
             // PASO 2: Insertar detalles
             let detallesInsertados = 0;
+            let hayError = false;
 
             detalles.forEach((detalle, index) => {
                 const sqlDetalle = `
-                    INSERT INTO detalles_venta (id_venta, id_producto, cantidad, subtotal)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO detalles_venta (id_venta, id_producto, id_servicio, cantidad, subtotal)
+                    VALUES (?, ?, ?, ?, ?)
                 `;
 
                 db.run(
                     sqlDetalle,
                     [
                         id_venta,
-                        parseInt(detalle.id_producto),
+                        detalle.id_producto ? parseInt(detalle.id_producto) : null,
+                        detalle.id_servicio || null,
                         parseInt(detalle.cantidad),
                         parseFloat(detalle.subtotal)
                     ],
                     (detalleErr) => {
                         if (detalleErr) {
-                            console.error('❌ Error al insertar detalle:', detalleErr.message);
-                            return db.run('ROLLBACK', () => {
-                                res.status(500).json({
-                                    error: 'Error al guardar los detalles de la venta.'
+                            if (!hayError) {
+                                hayError = true;
+                                console.error('❌ Error al insertar detalle:', detalleErr.message);
+                                return db.run('ROLLBACK', () => {
+                                    res.status(500).json({
+                                        error: 'Error al guardar los detalles de la venta.'
+                                    });
                                 });
-                            });
+                            }
+                            return;
                         }
 
                         detallesInsertados++;
