@@ -239,7 +239,7 @@ nav {
 /* Grid de layouts */
 .pos-grid {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 20px;
 }
 
@@ -643,8 +643,67 @@ tbody tr:hover {
     color: var(--danger);
 }
 
-/* Stats */
-.stats-grid {
+.badge-info {
+    background-color: rgba(22, 160, 133, 0.1);
+    color: var(--info);
+}
+
+/* Servicios - Grid de botones */
+.servicios-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.servicios-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.btn-servicio {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    color: var(--white);
+    border: none;
+    padding: 16px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
+    min-height: 90px;
+}
+
+.btn-servicio:hover {
+    box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
+    transform: translateY(-3px);
+    background: linear-gradient(135deg, #2980b9 0%, #1f5fa0 100%);
+}
+
+.btn-servicio:active {
+    transform: translateY(-1px);
+}
+
+.btn-servicio .material-icons {
+    font-size: 28px;
+}
+
+.btn-servicio small {
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.95;
+}
+
+/* Fila en carrito para servicios */
+.row-servicio {
+    background-color: rgba(22, 160, 133, 0.05) !important;
+    border-left: 3px solid var(--info);
+}
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 15px;
@@ -916,6 +975,10 @@ tbody tr:hover {
 
     .stats-grid {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .pos-grid {
+        grid-template-columns: 1fr;
     }
 }
 

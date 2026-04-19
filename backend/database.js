@@ -28,7 +28,7 @@ db.run("PRAGMA foreign_keys = ON", (err) => {
  * - detalles_venta: Líneas de productos en cada venta
  */
 function inicializarTablas() {
-    // Tabla 1: PRODUCTOS (Inventario)
+    // Tabla 1: PRODUCTOS (Inventario) - Ahora soporta servicios
     const sqlProductos = `
         CREATE TABLE IF NOT EXISTS productos (
             id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,6 +36,7 @@ function inicializarTablas() {
             nombre TEXT NOT NULL,
             precio REAL NOT NULL,
             stock INTEGER NOT NULL DEFAULT 0,
+            es_servicio INTEGER DEFAULT 0,
             fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP
         )
     `;

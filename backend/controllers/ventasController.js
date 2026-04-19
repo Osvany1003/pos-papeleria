@@ -100,11 +100,13 @@ exports.obtenerVentaPorId = (req, res) => {
  * POST /api/ventas
  *
  * REGLA CRÍTICA: Crea una venta con transacción SQL
- * 1. Valida stock disponible
+ * Soporta productos e servicios (sin inventario)
+ * 
+ * 1. Valida stock disponible (solo para productos, no servicios)
  * 2. Inicia transacción
  * 3. Inserta venta
  * 4. Inserta detalles
- * 5. Actualiza stock
+ * 5. Actualiza stock (solo para productos, no servicios)
  * 6. Commit o Rollback según errores
  *
  * Body esperado:
@@ -114,12 +116,14 @@ exports.obtenerVentaPorId = (req, res) => {
  *     {
  *       "id_producto": 1,
  *       "cantidad": 10,
- *       "subtotal": 5.00
+ *       "subtotal": 5.00,
+ *       "es_servicio": false
  *     },
  *     {
  *       "id_producto": 2,
- *       "cantidad": 5,
- *       "subtotal": 40.50
+ *       "cantidad": 1,
+ *       "subtotal": 120.00,
+ *       "es_servicio": true
  *     }
  *   ]
  * }
@@ -169,9 +173,16 @@ exports.crearVenta = (req, res) => {
         }
     }
 
-    // ========== VERIFICAR STOCK DISPONIBLE ==========
+    // ========== VERIFICAR STOCK DISPONIBLE (solo para productos) ==========
+    // NOTA: Si es_servicio es true, saltamos la validación de stock
     const promesas = detalles.map(detalle => {
         return new Promise((resolve, reject) => {
+            // Si es un servicio, no validamos stock
+            if (detalle.es_servicio === true) {
+                resolve({ es_servicio: true });
+                return;
+            }
+
             db.get(
                 'SELECT id_producto, stock, nombre FROM productos WHERE id_producto = ?',
                 [parseInt(detalle.id_producto)],
@@ -275,11 +286,39 @@ function ejecutarTransaccionVenta(res, total, detalles) {
 
 /**
  * Actualiza el stock de productos después de la venta
+ * NOTA: Solo actualiza stock si el item NO es servicio (es_servicio !== true)
  */
 function actualizarStockProductos(res, id_venta, total, detalles) {
+    // Filtrar solo productos (no servicios)
+    const productosParaActualizar = detalles.filter(d => d.es_servicio !== true);
+
+    // Si no hay productos para actualizar, hacer COMMIT directamente
+    if (productosParaActualizar.length === 0) {
+        db.run('COMMIT', (commitErr) => {
+            if (commitErr) {
+                console.error('❌ Error en COMMIT:', commitErr.message);
+                return res.status(500).json({
+                    error: 'Error al finalizar la transacción.'
+                });
+            }
+
+            // ✅ TODO EXITOSO (solo servicios)
+            res.status(201).json({
+                message: 'Venta registrada exitosamente',
+                venta: {
+                    id_venta,
+                    total,
+                    cantidad_productos: detalles.length,
+                    fecha: new Date().toISOString()
+                }
+            });
+        });
+        return;
+    }
+
     let actualizacionesRealizadas = 0;
 
-    detalles.forEach((detalle) => {
+    productosParaActualizar.forEach((detalle) => {
         const sqlUpdate = `
             UPDATE productos 
             SET stock = stock - ? 
@@ -302,7 +341,7 @@ function actualizarStockProductos(res, id_venta, total, detalles) {
                 actualizacionesRealizadas++;
 
                 // Una vez actualizado todo, hacer COMMIT
-                if (actualizacionesRealizadas === detalles.length) {
+                if (actualizacionesRealizadas === productosParaActualizar.length) {
                     db.run('COMMIT', (commitErr) => {
                         if (commitErr) {
                             console.error('❌ Error en COMMIT:', commitErr.message);

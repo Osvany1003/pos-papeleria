@@ -160,6 +160,71 @@ function mostrarResultadosBusqueda(productos, contenedor) {
 }
 
 /**
+ * Agrega un servicio al carrito
+ * 
+ * @param {string} id - Identificador del servicio (ej: "copia-bn", "acta-nacimiento")
+ * @param {number} precioDefault - Precio por defecto del servicio
+ * @param {boolean} esVariable - Si true, abre un prompt para que el usuario defina el precio
+ */
+function agregarServicioAlCarrito(id, precioDefault, esVariable) {
+    let nombre = '';
+    let precio = precioDefault;
+
+    // Mapeo de IDs a nombres legibles
+    const mapeoServicios = {
+        'copia-bn': 'Copia B/N',
+        'copia-color': 'Copia Color',
+        'acta-nacimiento': 'Acta de Nacimiento',
+        'curp': 'CURP',
+        'ciber-tiempo': 'Ciber Tiempo (minuto)'
+    };
+
+    nombre = mapeoServicios[id] || id;
+
+    // Si es variable, preguntar al usuario por el precio
+    if (esVariable) {
+        const precioIngresado = prompt(`Ingresa el precio para ${nombre}:`, precioDefault.toFixed(2));
+        
+        if (precioIngresado === null) {
+            // Usuario canceló
+            return;
+        }
+
+        const precioNum = parseFloat(precioIngresado);
+        if (isNaN(precioNum) || precioNum <= 0) {
+            alert('❌ El precio debe ser un número válido mayor a 0');
+            return;
+        }
+
+        precio = precioNum;
+    }
+
+    // Cantidad siempre es 1 para servicios
+    const cantidad = 1;
+
+    // Buscar si ya existe este servicio en el carrito
+    const itemExistente = app.carrito.find(item => item.id_servicio === id);
+
+    if (itemExistente) {
+        // Si existe, incrementar la cantidad
+        itemExistente.cantidad += cantidad;
+    } else {
+        // Agregar nuevo servicio al carrito
+        app.carrito.push({
+            id_servicio: id,      // Identificador del servicio
+            nombre,
+            precio,
+            cantidad,
+            subtotal: precio * cantidad,
+            es_servicio: true      // Bandera crítica para el backend
+        });
+    }
+
+    renderizarCarrito();
+    console.log(`✅ Servicio "${nombre}" agregado al carrito`);
+}
+
+/**
  * Agrega un producto al carrito
  */
 function agregarAlCarrito(id_producto, nombre, precio, stockDisponible) {
@@ -197,7 +262,7 @@ function agregarAlCarrito(id_producto, nombre, precio, stockDisponible) {
 }
 
 /**
- * Renderiza el carrito
+ * Renderiza el carrito (soporta productos y servicios)
  */
 function renderizarCarrito() {
     const carritoItems = document.getElementById('carrito-items');
@@ -211,9 +276,12 @@ function renderizarCarrito() {
 
     carritoItems.innerHTML = app.carrito.map((item, index) => {
         subtotal += item.subtotal;
+        // Mostrar badge si es servicio
+        const badgeServicio = item.es_servicio ? '<span class="badge badge-info">Servicio</span>' : '';
+        
         return `
-            <tr>
-                <td>${item.nombre}</td>
+            <tr ${item.es_servicio ? 'class="row-servicio"' : ''}>
+                <td>${item.nombre} ${badgeServicio}</td>
                 <td>
                     <input 
                         type="number" 
@@ -303,6 +371,7 @@ function limpiarCarrito() {
 /**
  * FUNCIÓN CRÍTICA: Cobra la venta
  * Envía transacción al backend con validación de stock
+ * Soporta tanto productos como servicios
  */
 async function cobrarVenta() {
     // Validar carrito
@@ -314,17 +383,21 @@ async function cobrarVenta() {
     // Calcular total
     const total = app.carrito.reduce((sum, item) => sum + item.subtotal, 0);
 
-    // Preparar payload
+    // Preparar payload - incluir bandera es_servicio en cada detalle
     const detalles = app.carrito.map(item => ({
-        id_producto: item.id_producto,
+        id_producto: item.id_producto || null,  // null para servicios
+        id_servicio: item.id_servicio || null,  // ID del servicio si aplica
         cantidad: item.cantidad,
-        subtotal: item.subtotal
+        subtotal: item.subtotal,
+        es_servicio: item.es_servicio || false  // Bandera crítica
     }));
 
     const payload = {
         total,
         detalles
     };
+
+    console.log('📤 Enviando venta al backend:', payload);
 
     // Mostrar loading
     const btnCobrar = document.getElementById('btn-cobrar');

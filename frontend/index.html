@@ -108,6 +108,47 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Panel: Acceso Rápido a Servicios -->
+                <div class="card servicios-card">
+                    <h3><span class="material-icons">miscellaneous_services</span> Acceso Rápido a Servicios</h3>
+                    <div class="servicios-grid">
+                        <!-- Botón: Copia B/N -->
+                        <button class="btn-servicio" onclick="agregarServicioAlCarrito('copia-bn', 0.50, true)" title="Copia Blanco y Negro">
+                            <span class="material-icons">print</span>
+                            <span>Copia B/N</span>
+                            <small>Variable</small>
+                        </button>
+
+                        <!-- Botón: Copia Color -->
+                        <button class="btn-servicio" onclick="agregarServicioAlCarrito('copia-color', 2.00, true)" title="Copia a Color">
+                            <span class="material-icons">palette</span>
+                            <span>Copia Color</span>
+                            <small>Variable</small>
+                        </button>
+
+                        <!-- Botón: Acta Nacimiento -->
+                        <button class="btn-servicio" onclick="agregarServicioAlCarrito('acta-nacimiento', 120, false)" title="Acta de Nacimiento">
+                            <span class="material-icons">assignment</span>
+                            <span>Acta Nacimiento</span>
+                            <small>$120</small>
+                        </button>
+
+                        <!-- Botón: CURP -->
+                        <button class="btn-servicio" onclick="agregarServicioAlCarrito('curp', 150, false)" title="Trámite CURP">
+                            <span class="material-icons">id_card</span>
+                            <span>CURP</span>
+                            <small>$150</small>
+                        </button>
+
+                        <!-- Botón: Ciber Tiempo -->
+                        <button class="btn-servicio" onclick="agregarServicioAlCarrito('ciber-tiempo', 0.25, true)" title="Tiempo de Computadora (por minuto)">
+                            <span class="material-icons">computer</span>
+                            <span>Ciber Tiempo</span>
+                            <small>$0.25/min</small>
+                        </button>
+                    </div>
+                </div>
             </div>
         </section>
 
