@@ -163,12 +163,13 @@ function mostrarResultadosBusqueda(productos, contenedor) {
  * Agrega un servicio al carrito
  * 
  * @param {string} id - Identificador del servicio (ej: "copia-bn", "acta-nacimiento")
- * @param {number} precioDefault - Precio por defecto del servicio
- * @param {boolean} esVariable - Si true, abre un prompt para que el usuario defina el precio
+ * @param {number} precioDefault - Precio por defecto o precio unitario
+ * @param {string} tipo - 'cantidad' para copias (pregunta cantidad), 'precio' para otros servicios (pregunta precio)
  */
-function agregarServicioAlCarrito(id, precioDefault, esVariable) {
+function agregarServicioAlCarrito(id, precioDefault, tipo = 'precio') {
     let nombre = '';
     let precio = precioDefault;
+    let cantidad = 1;
 
     // Mapeo de IDs a nombres legibles
     const mapeoServicios = {
@@ -181,12 +182,29 @@ function agregarServicioAlCarrito(id, precioDefault, esVariable) {
 
     nombre = mapeoServicios[id] || id;
 
-    // Si es variable, preguntar al usuario por el precio
-    if (esVariable) {
+    // ===== LÓGICA SEGÚN TIPO =====
+    if (tipo === 'cantidad') {
+        // Para copias: preguntar cantidad y calcular precio total
+        const cantidadIngresada = prompt(`¿Cuántas ${nombre.toLowerCase()} deseas?`, '1');
+
+        if (cantidadIngresada === null) {
+            return;
+        }
+
+        const cantidadNum = parseInt(cantidadIngresada);
+        if (isNaN(cantidadNum) || cantidadNum <= 0) {
+            alert('❌ La cantidad debe ser un número válido mayor a 0');
+            return;
+        }
+
+        cantidad = cantidadNum;
+        precio = cantidadNum * precioDefault;
+
+    } else {
+        // Para otros servicios: preguntar precio
         const precioIngresado = prompt(`Ingresa el precio para ${nombre}:`, precioDefault.toFixed(2));
         
         if (precioIngresado === null) {
-            // Usuario canceló
             return;
         }
 
@@ -199,29 +217,31 @@ function agregarServicioAlCarrito(id, precioDefault, esVariable) {
         precio = precioNum;
     }
 
-    // Cantidad siempre es 1 para servicios
-    const cantidad = 1;
-
     // Buscar si ya existe este servicio en el carrito
     const itemExistente = app.carrito.find(item => item.id_servicio === id);
 
     if (itemExistente) {
-        // Si existe, incrementar la cantidad
-        itemExistente.cantidad += cantidad;
+        // Si existe, sumar cantidades/precios
+        if (tipo === 'cantidad') {
+            itemExistente.cantidad += cantidad;
+            itemExistente.subtotal = itemExistente.cantidad * precioDefault;
+        } else {
+            itemExistente.subtotal += precio;
+        }
     } else {
         // Agregar nuevo servicio al carrito
         app.carrito.push({
-            id_servicio: id,      // Identificador del servicio
+            id_servicio: id,
             nombre,
-            precio,
-            cantidad,
-            subtotal: precio * cantidad,
-            es_servicio: true      // Bandera crítica para el backend
+            precio: tipo === 'cantidad' ? precioDefault : precio,
+            cantidad: tipo === 'cantidad' ? cantidad : 1,
+            subtotal: precio,
+            es_servicio: true
         });
     }
 
     renderizarCarrito();
-    console.log(`✅ Servicio "${nombre}" agregado al carrito`);
+    console.log(`✅ ${nombre} agregado - Cantidad: ${cantidad}, Precio: $${precio.toFixed(2)}`);
 }
 
 /**
